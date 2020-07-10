@@ -66,11 +66,11 @@ function getPOI(input, dest, debug) {
         }
         if (debug) img.write(dest + "/border.jpg");
 
-        norm.gaussian(1);
         norm.clone((err, norm) => {
-          orb(norm, dest, debug);
+          fast(norm, dest, debug);
         });
 
+        norm.gaussian(1);
         // norm.clone((err, norm) => {
         //   sobel(
         //     norm,
@@ -85,7 +85,7 @@ function getPOI(input, dest, debug) {
   });
 }
 
-function orb(org, dest, debug, threshold = 15) {
+function fast(org, dest, debug, threshold = 15) {
   let points = [
     [0, -3],
     [1, -3],
@@ -110,24 +110,37 @@ function orb(org, dest, debug, threshold = 15) {
     for (let x = 1; x < img.getWidth() - 1; x++) {
       for (let y = 1; y < img.getWidth() - 1; y++) {
         let p = getValue(org, x, y);
+        let counter = (list) =>
+          list.map(
+            (c) => Math.abs(getValue(org, x + c[0], y + c[1]) - p) > threshold
+          );
         if (
-          points
-            .map(
-              (c) => Math.abs(getValue(org, x + c[0], y + c[1]) - p) > threshold
-            )
-            .reduce((acc, val) => {
-              if (val) acc += 1;
-              else acc = 0;
-              return acc;
-            }, 0) > 11
+          counter([points[0], points[4], points[8], points[12]]).reduce(
+            (acc, val) => (acc += val ? 1 : 0),
+            0
+          ) < 4
         ) {
+          img.setPixelColor(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
+          continue; //SPEEEEEEEED!
+        }
+        let circle = counter(points);
+        let i = 0;
+        let count = 0;
+        while (i < circle.length || (circle[i % circle.length] && count < 12)) {
+          if (circle[i % circle.length]) count++;
+          else count = 0;
+          i++;
+        }
+        if (count > 11) {
           img.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), x, y);
           poi++;
         } else img.setPixelColor(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
       }
     }
-    if (poi < 100) orb(org, dest, debug, threshold - 2);
-    else {
+    if (poi < 500) {
+      console.log(`failed condition trying again at ${threshold}`);
+      fast(org, dest, debug, threshold - 2);
+    } else {
       console.log(`found ${poi} points at threshold ${threshold}`);
       img.write(dest + "/orb.jpg");
     }
