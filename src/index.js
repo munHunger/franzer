@@ -4,68 +4,137 @@ const { or } = require("mathjs");
 
 const MAX_PIXEL = 4294967295;
 
-Jimp.read("data/cup1.jpg", (err, img) => {
-  if (err) throw err;
-  img
-    .resize(256, 256) // resize
-    .quality(100); // set JPEG quality
+getPOI("data/cup1.jpg", "dest/cup1", true);
+getPOI("data/cup2.jpg", "dest/cup2", true);
+getPOI("data/flower1.jpg", "dest/flower1", true);
+getPOI("data/flower2.jpg", "dest/flower2", true);
+getPOI("data/office.jpg", "dest/office", true);
 
-  img.clone((err, org) => {
+for (let i = 1; i <= 9; i++)
+  getPOI(`data/office/ref/${i}.jpg`, "dest/office/ref/" + i, true);
+
+function getPOI(input, dest, debug) {
+  Jimp.read(input, (err, img) => {
     if (err) throw err;
     img
-      .greyscale() // set greyscale
-      .write("data/grayscale.jpg"); // save
+      .resize(512, 512) // resize
+      .quality(100); // set JPEG quality
 
-    let max = 0;
-    for (let x = 0; x < img.getWidth(); x++) {
-      for (let y = 0; y < img.getHeight(); y++) {
-        max = Math.max(max, Jimp.intToRGBA(img.getPixelColor(x, y)).r);
-      }
-    }
-
-    for (let x = 0; x < img.getWidth(); x++) {
-      for (let y = 0; y < img.getHeight(); y++) {
-        let strength = (Jimp.intToRGBA(img.getPixelColor(x, y)).r / max) * 255;
-        img.setPixelColor(
-          Jimp.rgbaToInt(strength, strength, strength, 255),
-          x,
-          y
-        );
-      }
-    }
-    img.write("data/normalized.jpg");
-
-    img.clone((err, norm) => {
+    img.clone((err, org) => {
       if (err) throw err;
-      let rad = 2;
-      for (let x = rad; x < norm.getWidth() - rad; x++) {
-        for (let y = rad; y < norm.getHeight() - rad; y++) {
-          let base = Jimp.intToRGBA(norm.getPixelColor(x, y)).r;
-          let diffs = 0;
-          for (let xX = -rad; xX <= rad; xX += rad) {
-            for (let yY = -rad; yY <= rad; yY += rad) {
-              diffs += Math.abs(
-                Jimp.intToRGBA(norm.getPixelColor(x + xX, y + yY)).r - base
-              );
-            }
-          }
-          diffs /= 8;
-          // diffs = diffs > 25 ? 255 : 0;
-          img.setPixelColour(Jimp.rgbaToInt(diffs, diffs, diffs, 255), x, y);
+      img.greyscale();
+      if (debug) img.write(dest + "/grayscale.jpg"); // save
+
+      let max = 0;
+      for (let x = 0; x < img.getWidth(); x++) {
+        for (let y = 0; y < img.getHeight(); y++) {
+          max = Math.max(max, Jimp.intToRGBA(img.getPixelColor(x, y)).r);
         }
       }
-      img.write("data/border.jpg");
 
-      norm.gaussian(1);
+      for (let x = 0; x < img.getWidth(); x++) {
+        for (let y = 0; y < img.getHeight(); y++) {
+          let strength =
+            (Jimp.intToRGBA(img.getPixelColor(x, y)).r / max) * 255;
+          img.setPixelColor(
+            Jimp.rgbaToInt(strength, strength, strength, 255),
+            x,
+            y
+          );
+        }
+      }
+      if (debug) img.write(dest + "/normalized.jpg");
 
-      norm.clone((err, norm) => {
-        sobel(norm, norm, (sobel) => harris(sobel, org));
+      img.clone((err, norm) => {
+        if (err) throw err;
+        let rad = 2;
+        for (let x = rad; x < norm.getWidth() - rad; x++) {
+          for (let y = rad; y < norm.getHeight() - rad; y++) {
+            let base = Jimp.intToRGBA(norm.getPixelColor(x, y)).r;
+            let diffs = 0;
+            for (let xX = -rad; xX <= rad; xX += rad) {
+              for (let yY = -rad; yY <= rad; yY += rad) {
+                diffs += Math.abs(
+                  Jimp.intToRGBA(norm.getPixelColor(x + xX, y + yY)).r - base
+                );
+              }
+            }
+            diffs /= 8;
+            // diffs = diffs > 25 ? 255 : 0;
+            img.setPixelColour(Jimp.rgbaToInt(diffs, diffs, diffs, 255), x, y);
+          }
+        }
+        if (debug) img.write(dest + "/border.jpg");
+
+        norm.gaussian(1);
+        norm.clone((err, norm) => {
+          orb(norm, dest, debug);
+        });
+
+        // norm.clone((err, norm) => {
+        //   sobel(
+        //     norm,
+        //     norm,
+        //     (sobel) => harris(sobel, org, dest, debug),
+        //     dest,
+        //     debug
+        //   );
+        // });
       });
     });
   });
-});
+}
 
-function sobel(img, org, callback) {
+function orb(org, dest, debug, threshold = 15) {
+  let points = [
+    [0, -3],
+    [1, -3],
+    [2, -2],
+    [3, -1],
+    [3, 0],
+    [3, 1],
+    [2, 2],
+    [1, 3],
+    [0, 3],
+    [-1, 3],
+    [-2, 2],
+    [-3, 1],
+    [-3, 0],
+    [-3, -1],
+    [-2, -2],
+    [-1, -3],
+  ];
+
+  org.clone((err, img) => {
+    let poi = 0;
+    for (let x = 1; x < img.getWidth() - 1; x++) {
+      for (let y = 1; y < img.getWidth() - 1; y++) {
+        let p = getValue(org, x, y);
+        if (
+          points
+            .map(
+              (c) => Math.abs(getValue(org, x + c[0], y + c[1]) - p) > threshold
+            )
+            .reduce((acc, val) => {
+              if (val) acc += 1;
+              else acc = 0;
+              return acc;
+            }, 0) > 11
+        ) {
+          img.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), x, y);
+          poi++;
+        } else img.setPixelColor(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
+      }
+    }
+    if (poi < 100) orb(org, dest, debug, threshold - 2);
+    else {
+      console.log(`found ${poi} points at threshold ${threshold}`);
+      img.write(dest + "/orb.jpg");
+    }
+  });
+}
+
+function sobel(img, org, callback, dest, debug) {
   img.clone((err, img) => {
     for (let x = 1; x < img.getWidth() - 1; x++) {
       for (let y = 1; y < img.getWidth() - 1; y++) {
@@ -102,6 +171,7 @@ function sobel(img, org, callback) {
         );
         let strength =
           Math.min(Math.max(Math.abs(gXSum), Math.abs(gYSum)) / 140, 1) * 255;
+
         org.setPixelColor(
           Jimp.rgbaToInt(strength, strength, strength, 255),
           x,
@@ -109,20 +179,20 @@ function sobel(img, org, callback) {
         );
       }
     }
-    org.write("data/sobel.jpg");
+    if (debug) org.write(dest + "/sobel.jpg");
     callback.apply(this, [org]);
   });
 }
 
-function harris(img, org) {
+function harris(img, org, dest, debug) {
   let points = 0;
   img.clone((err, img) => {
     if (err) throw err;
     let rad = 1;
     for (let x = rad; x < img.getWidth() - rad; x++) {
       for (let y = rad; y < img.getHeight() - rad; y++) {
-        let rT = 9000000000;
-        let cT = 500000;
+        let rT = 90000000;
+        let cT = 50000;
 
         let eigs = math.eigs(getHarrisWindow(img, x, y));
         let l1 = eigs.values[0];
@@ -133,19 +203,23 @@ function harris(img, org) {
         if (Math.abs(r) > rT) {
           //not flat
           if (Math.abs(l1 - l2) > cT) {
-            org.setPixelColour(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
+            // org.setPixelColour(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
             // org.setPixelColour(Jimp.rgbaToInt(0, 0, 200, 255), x, y);
             //edge
           } else {
-            org.setPixelColour(Jimp.rgbaToInt(255, 0, 0, 255), x, y);
+            let strength = 255;
+            org.setPixelColour(
+              Jimp.rgbaToInt(strength, strength, strength, 255),
+              x,
+              y
+            );
             points++;
             //corner
           }
-        }
-        else org.setPixelColour(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
+        } else org.setPixelColour(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
       }
     }
-    org.write("data/imp.jpg");
+    if (debug) org.write(dest + "/imp.jpg");
   });
   console.log(points + " poi found");
 }
