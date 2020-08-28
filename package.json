@@ -9,7 +9,6 @@
   "author": "",
   "license": "ISC",
   "dependencies": {
-    "jimp": "0.13.0",
-    "mathjs": "7.0.2"
+    "opencv4nodejs": "5.6.0"
   }
 }

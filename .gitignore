@@ -1,2 +1,7 @@
 node_modules
 dest
+CMakeFiles
+DisplayImage
+Makefile
+CMakeCache.txt
+cmake_install.cmake

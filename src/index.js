@@ -1,150 +1,119 @@
 var Jimp = require("jimp");
 var math = require("mathjs");
-const { or } = require("mathjs");
+let { fast } = require("./fast");
+let util = require("./util");
+// getPOI("data/cup1.jpg", "dest/cup1", true);
+// getPOI("data/cup2.jpg", "dest/cup2", true);
+// getPOI("data/flower1.jpg", "dest/flower1", true);
+// getPOI("data/flower2.jpg", "dest/flower2", true);
+// getPOI("data/office.jpg", "dest/office", true);
 
-const MAX_PIXEL = 4294967295;
-
-getPOI("data/cup1.jpg", "dest/cup1", true);
-getPOI("data/cup2.jpg", "dest/cup2", true);
-getPOI("data/flower1.jpg", "dest/flower1", true);
-getPOI("data/flower2.jpg", "dest/flower2", true);
-getPOI("data/office.jpg", "dest/office", true);
-
-for (let i = 1; i <= 9; i++)
-  getPOI(`data/office/ref/${i}.jpg`, "dest/office/ref/" + i, true);
+// for (let i = 1; i <= 9; i++)
+//   getPOI(`data/office/ref/${i}.jpg`, "dest/office/ref/" + i, true);
 
 function getPOI(input, dest, debug) {
-  Jimp.read(input, (err, img) => {
-    if (err) throw err;
-    img
-      .resize(512, 512) // resize
-      .quality(100); // set JPEG quality
-
-    img.clone((err, org) => {
-      if (err) throw err;
-      img.greyscale();
-      if (debug) img.write(dest + "/grayscale.jpg"); // save
-
-      let max = 0;
-      for (let x = 0; x < img.getWidth(); x++) {
-        for (let y = 0; y < img.getHeight(); y++) {
-          max = Math.max(max, Jimp.intToRGBA(img.getPixelColor(x, y)).r);
-        }
-      }
-
-      for (let x = 0; x < img.getWidth(); x++) {
-        for (let y = 0; y < img.getHeight(); y++) {
-          let strength =
-            (Jimp.intToRGBA(img.getPixelColor(x, y)).r / max) * 255;
-          img.setPixelColor(
-            Jimp.rgbaToInt(strength, strength, strength, 255),
-            x,
-            y
-          );
-        }
-      }
-      if (debug) img.write(dest + "/normalized.jpg");
-
-      img.clone((err, norm) => {
-        if (err) throw err;
-        let rad = 2;
-        for (let x = rad; x < norm.getWidth() - rad; x++) {
-          for (let y = rad; y < norm.getHeight() - rad; y++) {
-            let base = Jimp.intToRGBA(norm.getPixelColor(x, y)).r;
-            let diffs = 0;
-            for (let xX = -rad; xX <= rad; xX += rad) {
-              for (let yY = -rad; yY <= rad; yY += rad) {
-                diffs += Math.abs(
-                  Jimp.intToRGBA(norm.getPixelColor(x + xX, y + yY)).r - base
-                );
-              }
-            }
-            diffs /= 8;
-            // diffs = diffs > 25 ? 255 : 0;
-            img.setPixelColour(Jimp.rgbaToInt(diffs, diffs, diffs, 255), x, y);
-          }
-        }
-        if (debug) img.write(dest + "/border.jpg");
-
-        norm.clone((err, norm) => {
-          fast(norm, dest, debug);
-        });
-
-        norm.gaussian(1);
-        // norm.clone((err, norm) => {
-        //   sobel(
-        //     norm,
-        //     norm,
-        //     (sobel) => harris(sobel, org, dest, debug),
-        //     dest,
-        //     debug
-        //   );
-        // });
-      });
-    });
-  });
+  util.getImg(input, dest, debug).then((img) =>
+    fast(img, dest, debug).then((points) => {
+      getPointIdentities(points);
+    })
+  );
 }
 
-function fast(org, dest, debug, threshold = 15) {
-  let points = [
-    [0, -3],
-    [1, -3],
-    [2, -2],
-    [3, -1],
-    [3, 0],
-    [3, 1],
-    [2, 2],
-    [1, 3],
-    [0, 3],
-    [-1, 3],
-    [-2, 2],
-    [-3, 1],
-    [-3, 0],
-    [-3, -1],
-    [-2, -2],
-    [-1, -3],
-  ];
+util.getImg("data/flower2.jpg", "dest/flower3", true).then((img1) =>
+  fast(img1, "dest/flower3", true).then((points) => {
+    let p1 = getPointIdentities(img1, points);
 
-  org.clone((err, img) => {
-    let poi = 0;
-    for (let x = 1; x < img.getWidth() - 1; x++) {
-      for (let y = 1; y < img.getWidth() - 1; y++) {
-        let p = getValue(org, x, y);
-        let counter = (list) =>
-          list.map(
-            (c) => Math.abs(getValue(org, x + c[0], y + c[1]) - p) > threshold
-          );
-        if (
-          counter([points[0], points[4], points[8], points[12]]).reduce(
-            (acc, val) => (acc += val ? 1 : 0),
-            0
-          ) < 4
-        ) {
-          img.setPixelColor(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
-          continue; //SPEEEEEEEED!
-        }
-        let circle = counter(points);
-        let i = 0;
-        let count = 0;
-        while (i < circle.length || (circle[i % circle.length] && count < 12)) {
-          if (circle[i % circle.length]) count++;
-          else count = 0;
-          i++;
-        }
-        if (count > 11) {
-          img.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), x, y);
-          poi++;
-        } else img.setPixelColor(Jimp.rgbaToInt(0, 0, 0, 255), x, y);
-      }
-    }
-    if (poi < 500) {
-      console.log(`failed condition trying again at ${threshold}`);
-      fast(org, dest, debug, threshold - 2);
-    } else {
-      console.log(`found ${poi} points at threshold ${threshold}`);
-      img.write(dest + "/orb.jpg");
-    }
-  });
+    util.getImg("data/flower1.jpg", "dest/flower4", true).then((img2) =>
+      fast(img2, "dest/flower4", true).then((points) => {
+        let p2 = getPointIdentities(img2, points);
+
+        let t = 1;
+        let similar = p1.filter((p) =>
+          p2.find((o) => Math.abs(p.id - o.id) < t)
+        );
+        // util.getImg("data/flower2.jpg", "dest/flower5", true).then((img) => {
+        //   p1.forEach((point) =>
+        //     img.setPixelColor(Jimp.rgbaToInt(255, 0, 0, 255), point.x, point.y)
+        //   );
+        //   similar.forEach((point) => {
+        //     img.setPixelColor(Jimp.rgbaToInt(0, 255, 0, 255), point.x, point.y);
+        //   });
+        //   img.write("dest/flower5/similar.jpg");
+        // });
+
+        new Jimp(
+          img1.getWidth() * 2,
+          img1.getHeight(),
+          "black",
+          (err, cross) => {
+            cross.composite(img1, 0, 0);
+            cross.composite(img2, img1.getWidth(), 0);
+            p1.forEach((p1, index) => {
+              let n = p2.sort(
+                (a, b) => Math.abs(p1.id - a.id) - Math.abs(p1.id - b.id)
+              )[0];
+              if (Math.abs(p1.id - n.id) < t) {
+                // console.log(
+                //   `on index ${index} drawing a line from (${p1.x},${p1.y}) to (${n.x}, ${n.y})`
+                // );
+                if (index % 100 == 0)
+                  line(cross, p1.x, p1.y, n.x + img1.getWidth(), n.y);
+              }
+            });
+            // line(cross, 10, 10, 200, 100);
+            cross.write("dest/cross.jpg");
+          }
+        );
+      })
+    );
+  })
+);
+
+function line(img, x1, y1, x2, y2) {
+  let dX = x2 - x1;
+  let dY = y2 - y1;
+  let max = Math.max(Math.abs(dX), Math.abs(dY));
+  dX /= max;
+  dY /= max;
+  while (Math.floor(x1) !== x2 && Math.floor(y1) !== y2) {
+    img.setPixelColor(Jimp.rgbaToInt(0, 0, 255, 255), x1, y1);
+    x1 += dX;
+    y1 += dY;
+    // console.log(x1, y1);
+  }
+}
+
+function getPointIdentities(img, points) {
+  let ignoreRadius = 5;
+  let neighbourhoodRadius = 15;
+  points = points.map((point) => ({
+    x: point[0],
+    y: point[1],
+    neighbours: points
+      .map((neighbour) => ({
+        x: neighbour[0],
+        y: neighbour[1],
+        dist: Math.sqrt(
+          Math.pow(Math.abs(point[0] - neighbour[0]), 2) +
+            Math.pow(Math.abs(point[1] - neighbour[1]), 2)
+        ), //TODO: calculate angle in each neighbour relative to 0(up)
+      }))
+      .filter((n) => n.dist > ignoreRadius && n.dist < neighbourhoodRadius),
+  }));
+  return points.map((p) => ({
+    ...p,
+    id:
+      ([
+        [0, -3],
+        [3, 0],
+        [0, 3],
+        [-3, 0],
+      ]
+        .map((point) => util.getValue(img, p.x + point[0], p.y + point[1]))
+        .reduce((acc, val) => (acc += val), 0) +
+        p.neighbours.reduce((acc, val) => (acc += val.dist), 0)) *
+      p.neighbours.length,
+  }));
 }
 
 function sobel(img, org, callback, dest, debug) {
