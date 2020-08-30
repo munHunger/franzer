@@ -1,6 +1,7 @@
 <script>
   import { onMount } from "svelte";
   let result;
+  let resultCanvas;
   let count = 0;
   let files;
   let video;
@@ -20,7 +21,44 @@
         body: JSON.stringify({ a: images[0], b: images[1], id: count })
       })
         .then(data => data.json())
-        .then(body => (result.src = body.img))
+        .then(body => {
+          let ctx = resultCanvas.getContext("2d");
+          var image = new Image();
+          let i = 0;
+          image.onload = function() {
+            ctx.drawImage(image, image.width * i, 0, image.width, image.height);
+            i++;
+            if (i == 1) image.src = images[1];
+            else if (i == 2) {
+              body.forEach(match => {
+                ctx.fillStyle = "rgba(0,0,255,0.5)";
+                ctx.fillRect(
+                  match.desc1.keypoint[0],
+                  match.desc1.keypoint[1],
+                  2,
+                  2
+                );
+                ctx.fillStyle = "rgba(0,255,0,0.5)";
+                ctx.fillRect(
+                  match.desc2.keypoint[0] + image.width,
+                  match.desc2.keypoint[1],
+                  2,
+                  2
+                );
+                ctx.strokeStyle = "rgba(255,0,0,0.25)";
+
+                ctx.beginPath();
+                ctx.moveTo(match.desc1.keypoint[0], match.desc1.keypoint[1]);
+                ctx.lineTo(
+                  match.desc2.keypoint[0] + image.width,
+                  match.desc2.keypoint[1]
+                );
+                ctx.stroke();
+              });
+            }
+          };
+          image.src = images[0];
+        })
         .then(snap)
         .catch(
           error => console.log(error) // Handle the error response object
@@ -41,7 +79,7 @@
   }
 
   function snap() {
-    canvas.getContext("2d").drawImage(video, 0, 0, 160, 120);
+    canvas.getContext("2d").drawImage(video, 0, 0, 500, 500);
     submit();
   }
   onMount(() => {
@@ -61,13 +99,12 @@
     height: 375px;
     background-color: #666;
   }
-  canvas {
-    display: none;
-  }
 </style>
 
 <div id="container">
   <video autoplay="true" id="videoElement" bind:this={video} />
-  <canvas width="160" height="120" bind:this={canvas} />
+  <canvas width="500" height="500" style="display:none" bind:this={canvas} />
   <img bind:this={result} />
 </div>
+
+<canvas bind:this={resultCanvas} width="1000" height="500" />

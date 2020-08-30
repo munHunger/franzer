@@ -1,16 +1,20 @@
 var Jimp = require("jimp");
 let { fast } = require("./fast");
+let { sobel } = require("./sobel");
 let { brief } = require("./brief");
+let { BST } = require("./bst");
 let util = require("./util");
 
 function match(a, b, out) {
   return new Promise((resolve, reject) => {
     util.getImg(a).then((img1) =>
       fast(img1.img)
+        .then((points) => points.concat(sobel(img1.img)))
         .then((points) => brief(img1.img, points))
         .then((descriptors1) => {
           util.getImg(b).then((img2) =>
             fast(img2.img)
+              .then((points) => points.concat(sobel(img2.img)))
               .then((points) => brief(img2.img, points))
               .then((descriptors2) => {
                 new Jimp(
@@ -20,25 +24,33 @@ function match(a, b, out) {
                   (err, cross) => {
                     cross.composite(img1.org, 0, 0);
                     cross.composite(img2.org, img1.org.getWidth(), 0);
-                    const match = (a, b) =>
-                      util.bitCount(util.bitAnd(a.feature, b.feature));
-                    let matches = descriptors1
-                      .map((desc1) => {
-                        let desc2 = descriptors2.sort(
-                          (a, b) => match(desc1, b) - match(desc1, a)
-                        )[0];
-                        return { desc1, desc2 };
-                      })
-                      .sort(
-                        (a, b) =>
-                          match(b.desc1, b.desc2) - match(a.desc1, a.desc2)
-                      )
-                      .filter(
-                        (m) =>
-                          util.bitCount(m.desc1.feature) -
-                            match(m.desc1, m.desc2) <
-                          3
-                      );
+
+                    let bst = new BST();
+                    descriptors2.forEach((desc) => {
+                      //   console.log(`adding feature ${desc.feature}`);
+                      bst.addValue(desc.feature, desc);
+                    });
+
+                    // const match = (a, b) =>
+                    //   util.bitCount(util.bitAnd(a.feature, b.feature));
+                    let matches = shuffle(
+                      descriptors1
+                        .map((desc1) => {
+                          let desc2 = bst.find(desc1.feature);
+                          return { desc1, desc2 };
+                        })
+                        .filter((match) => match.desc2)
+                    );
+                    //   .sort(
+                    //     (a, b) =>
+                    //       match(b.desc1, b.desc2) - match(a.desc1, a.desc2)
+                    //   )
+                    //   .filter(
+                    //     (m) =>
+                    //       util.bitCount(m.desc1.feature) -
+                    //         match(m.desc1, m.desc2) <
+                    //       3
+                    //   );
 
                     // console.log(
                     //   matches.map((match) => ({
@@ -64,7 +76,7 @@ function match(a, b, out) {
                       );
                     });
                     cross.write(out);
-                    resolve();
+                    resolve(matches);
                   }
                 );
               })
@@ -74,7 +86,20 @@ function match(a, b, out) {
   });
 }
 module.exports = { match };
-
+/**
+ * Shuffles array in place.
+ * @param {Array} a items An array containing the items.
+ */
+function shuffle(a) {
+  var j, x, i;
+  for (i = a.length - 1; i > 0; i--) {
+    j = Math.floor(Math.random() * (i + 1));
+    x = a[i];
+    a[i] = a[j];
+    a[j] = x;
+  }
+  return a;
+}
 //Stolen code https://medium.com/@js_tut/how-to-code-your-first-algorithm-draw-a-line-ca121f9a1395
 let draw_line = (img, x1, y1, x2, y2) => {
   // Iterators, counters required by algorithm

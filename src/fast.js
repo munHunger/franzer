@@ -3,7 +3,7 @@ var Jimp = require("jimp");
 
 /**
  *
- * @param {*} org the Jimp image to run fast over
+ * @param {Jimp} org the Jimp image to run fast over
  * @param {*} dest if debug, this is the output folder to write to
  * @param {*} debug if true, then write a debug image
  * @param {*} threshold how big the pixel difference has to be to be important
@@ -28,7 +28,6 @@ function fast(org, dest, debug, threshold = 5) {
     [-2, -2],
     [-1, -3],
   ];
-
   let pois = [];
   return new Promise((resolve, reject) => {
     org.clone((err, img) => {

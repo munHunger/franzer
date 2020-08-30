@@ -26,13 +26,11 @@ app.post("/upload", (req, res) => {
 
   writeImage(data.a, `/tmp/${data.id}a.png`);
   writeImage(data.b, `/tmp/${data.id}b.png`);
-  match(`/tmp/${data.id}a.png`, `/tmp/${data.id}b.png`, `/tmp/${data.id}c.png`)
-    .then(() => fs.promises.readFile(`/tmp/${data.id}c.png`, "base64"))
-    .then((data) =>
-      res.status(200).json({
-        img: "data:image/png;base64," + data,
-      })
-    );
+  match(
+    `/tmp/${data.id}a.png`,
+    `/tmp/${data.id}b.png`,
+    `/tmp/${data.id}c.png`
+  ).then((matches) => res.status(200).json(matches));
 });
 
 function writeImage(base64Data, path) {

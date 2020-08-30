@@ -1,5 +1,6 @@
 let { getValue } = require("./util");
 var Jimp = require("jimp");
+var util = require("./util");
 
 /**
  * The width and height of each patch
@@ -53,7 +54,10 @@ function brief(img, keypoints) {
               Math.pow(2, Math.floor(index % 32));
           }
         });
-        return { keypoint, feature };
+        return {
+          keypoint,
+          feature: util.printFeature(feature),
+        };
       }) //TODO: Add a spacial index of features
     );
   });
