@@ -1,7 +1,15 @@
 let { getValue } = require("./util");
 var Jimp = require("jimp");
 
-function fast(org, dest, debug, threshold = 13) {
+/**
+ *
+ * @param {*} org the Jimp image to run fast over
+ * @param {*} dest if debug, this is the output folder to write to
+ * @param {*} debug if true, then write a debug image
+ * @param {*} threshold how big the pixel difference has to be to be important
+ * @returns {Promise<Array.<Array.<number>>>} A list of x,y cords of keypoints
+ */
+function fast(org, dest, debug, threshold = 5) {
   let points = [
     [0, -3],
     [1, -3],
