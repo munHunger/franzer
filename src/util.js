@@ -39,7 +39,7 @@ function getImg(path, dest, debug) {
         if (debug) img.write(dest + "/normalized.jpg");
         img.clone((err, img) => {
           if (err) reject(err);
-          img.blur(1, (err, img) => {
+          img.blur(3, (err, img) => {
             if (err) reject(err);
             else resolve({ img, org });
           });

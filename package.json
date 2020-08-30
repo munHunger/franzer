@@ -8,5 +8,11 @@
   },
   "author": "",
   "license": "ISC",
-  "dependencies": {}
+  "dependencies": {
+    "jimp": "0.16.1",
+    "express": "4.17.1",
+    "body-parser": "1.19.0",
+    "cors": "2.8.5",
+    "multer": "1.4.2"
+  }
 }
