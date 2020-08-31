@@ -5,8 +5,8 @@ var util = require("./util");
 /**
  * The width and height of each patch
  */
-const pathSize = 25;
-const pairCount = 512;
+const pathSize = 48;
+const pairCount = 256;
 
 /**
  * @type {Array.<Array.<Array.<number>>>} a list of x,y pairs
